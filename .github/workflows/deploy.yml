@@ -26,6 +26,7 @@ jobs:
           mkdir -p site
           cp index.html app.js benchmark.html benchmark.js benchmark-fixed-v4.js optimize.html optimize-a18-v1.js compare-versions.html compare-versions-v1.js site/
           cp -R multithread site/multithread
+          cp -R gpu site/gpu
           npm install --no-save --prefix /tmp/chess-stockfish stockfish@19.0.1
           npm install --no-save --prefix /tmp/chess-stockfish-18 stockfish@18.0.8
           cp /tmp/chess-stockfish-18/node_modules/stockfish/bin/stockfish-18-lite-single.js site/
