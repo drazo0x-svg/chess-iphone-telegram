@@ -2,13 +2,13 @@
 (()=>{
  if(window.__chessTrainingV2)return;window.__chessTrainingV2=true;
  const F='abcdefgh',start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
- let topic='',enabled=true,initialTurn='w',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
+ let topic='',enabled=true,initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
  let observation=null,overlay=null,timer=null,pollTimer=null,sendTime=0,castling='KQkq',ep='-',half=0,full=1,ui=null;
- chrome.storage.local.get({topic:'',enabled:true,initialTurn:'w'},v=>{topic=v.topic;enabled=v.enabled;initialTurn=v.initialTurn;setup();});
+ chrome.storage.local.get({topic:'',enabled:true,initialTurn:'auto'},v=>{topic=v.topic;enabled=v.enabled;initialTurn='auto';setup();});
  chrome.storage.onChanged.addListener(ch=>{
   if(ch.topic)topic=ch.topic.newValue||'';
   if(ch.enabled)enabled=!!ch.enabled.newValue;
-  if(ch.initialTurn)initialTurn=ch.initialTurn.newValue||'w';
+  if(ch.initialTurn)initialTurn='auto';
   if(ch.topic||ch.enabled||ch.initialTurn){prev=null;seenFen='';request=null;setup();}
  });
  function findBoard(){return document.querySelector('chess-board,wc-chess-board,.board, cg-board');}
@@ -76,18 +76,19 @@
   const s=scan();if(!s){setStatus('Échiquier non reconnu');return;}
   if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';removeArrow();}
   if(prev?.placement===s.placement)return;
-  let turn=initialTurn;
+  let turn=null;
   if(prev){
    const move=mover(prev.map,s.map);
    if(!move){prev=s;setStatus('Mouvement incertain : vérifie la position');removeArrow();return;}
    turn=move.color==='w'?'b':'w';updateRights(move,s.map);if(move.color==='b')full++;
    half=move.piece.toLowerCase()==='p'?0:half+1;
   }else{
-   castling=''; // Never infer castling rights from a midgame snapshot.
+   castling=''; // On ne peut pas deviner les droits de roque au milieu d'une partie.
    if(s.placement===start){castling='KQkq';turn='w';}
-   else setStatus('Position chargée : couleur au trait définie dans les réglages');
+   else setStatus('Couleur au trait inconnue : détection au prochain coup');
   }
   prev=s;removeArrow();
+  if(!turn){request=null;fen=null;return;}
   fen=[s.placement,turn,castling||'-',ep,half,full].join(' ');
   if(!topic||!enabled){setStatus('Renseigne le canal ntfy dans le popup');return;}
   if(fen===seenFen)return;
