@@ -1,15 +1,28 @@
 {
   "manifest_version": 3,
-  "name": "Chess Training Relay",
-  "version": "1.0.0",
-  "description": "Envoie une FEN vers l'analyse locale iPhone pour l'entraînement.",
+  "name": "Chess Training — iPhone Stockfish",
+  "version": "2.0.0",
+  "description": "Analyse automatique des positions d'entraînement via Stockfish sur iPhone, avec flèche sur l'échiquier.",
   "permissions": [
-    "activeTab",
-    "scripting",
     "storage"
   ],
   "host_permissions": [
     "https://ntfy.sh/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.chess.com/*",
+        "https://lichess.org/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
   ],
   "action": {
     "default_popup": "popup.html"
