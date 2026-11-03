@@ -10,12 +10,12 @@ Pas de Telegram, pas de Python. Aucun clic « Scanner » après chaque coup.
 3. Sur PC, télécharger https://github.com/drazo0x-svg/chess-iphone-telegram/archive/refs/heads/main.zip et extraire l'archive.
 4. Chrome → `chrome://extensions` → Mode développeur → Charger l'extension non empaquetée → choisir **extension**.
 5. Si l'extension existait déjà, la **recharger** depuis `chrome://extensions`, puis actualiser la page d'échecs.
-6. Ouvrir son popup une fois pour coller le canal de l'iPhone et activer **Analyse automatique**.
+6. Ouvrir son popup une fois pour coller le canal de l'iPhone et activer **Analyse automatique**. Le camp au trait est détecté automatiquement ; il n'y a plus de sélecteur Blancs/Noirs.
 7. Ouvrir l'échiquier d'entraînement sur Chess.com ou Lichess. Après chaque changement de position reconnu, l'extension calcule l'état au trait et envoie une FEN. La réponse apparaît comme une flèche sur l'échiquier, même si le popup est fermé.
 
 ## Particularités
 - Le moteur analyse le **camp au trait après le dernier coup** (l'adversaire du joueur qui vient de jouer).
-- À l'ouverture au milieu d'une partie, le camp au trait est potentiellement inconnu : le choisir dans le popup ; idéalement commencer depuis la position initiale.
+- À l'ouverture au milieu d'une partie, le camp au trait est inconnu à partir des seules pièces : l'extension attend le **prochain déplacement de pièce reconnu** pour l'identifier. À la position initiale, les Blancs commencent automatiquement.
 - La FEN est reconstruite à partir des pièces et du suivi de leurs déplacements. Les droits de roque, prise en passant et les compteurs ne sont **pas garantis** si la partie était déjà commencée au moment du chargement.
 - Si l'échiquier ou la manière dont le site dessine les pièces change, la détection peut échouer. Ce système n'utilise pas d'OCR.
 - La flèche et les cases colorées sont ajoutées dans la page du navigateur, avec un petit indicateur d'état en bas à droite.
