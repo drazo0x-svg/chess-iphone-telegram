@@ -45,7 +45,8 @@
    }
    waiting={reject:e=>finish(e)};
    try{worker=new Worker('./engine/stockfish-19-lite.js');}catch(e){finish(e);return;}
-   worker.onerror=e=>finish(Error('Erreur moteur : '+(e.message||'WebWorker indisponible')));
+   worker.onerror=e=>finish(Error('Erreur moteur : '+(e.message||'fichier moteur inaccessible')+' — ouvre /multithread/engine/stockfish-19-lite.js pour vérifier le fichier.'));
+   worker.onmessageerror=()=>finish(Error('Réponse illisible du moteur WebAssembly.'));
    worker.onmessage=e=>{
     for(const raw of String(e.data||'').split(/\r?\n/)){
      const line=raw.trim();
