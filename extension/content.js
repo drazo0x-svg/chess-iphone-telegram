@@ -2,15 +2,16 @@
 (()=>{
  if(window.__chessTrainingV2)return;window.__chessTrainingV2=true;
  const F='abcdefgh',start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
- let topic='',enabled=true,playerColor='auto',initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
- let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,castling='KQkq',ep='-',half=0,full=1,ui=null;
- chrome.storage.local.get({topic:'',enabled:true,playerColor:'auto',initialTurn:'auto'},v=>{topic=v.topic;enabled=v.enabled;playerColor=v.playerColor||'auto';initialTurn='auto';setup();});
+ let topic='',relayUrl='',enabled=true,playerColor='auto',initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
+ let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,relaySocket=null,reconnectTimer=null,castling='KQkq',ep='-',half=0,full=1,ui=null;
+ chrome.storage.local.get({topic:'',relayUrl:'',enabled:true,playerColor:'auto',initialTurn:'auto'},v=>{topic=v.topic;relayUrl=v.relayUrl||'';enabled=v.enabled;playerColor=v.playerColor||'auto';initialTurn='auto';setup();});
  chrome.storage.onChanged.addListener(ch=>{
   if(ch.topic)topic=ch.topic.newValue||'';
+  if(ch.relayUrl)relayUrl=ch.relayUrl.newValue||'';
   if(ch.enabled)enabled=!!ch.enabled.newValue;
   if(ch.initialTurn)initialTurn='auto';
   if(ch.playerColor)playerColor=ch.playerColor.newValue||'auto';
-  if(ch.topic||ch.enabled||ch.initialTurn||ch.playerColor){prev=null;seenFen='';request=null;removeArrow();setup();}
+  if(ch.topic||ch.relayUrl||ch.enabled||ch.initialTurn||ch.playerColor){prev=null;seenFen='';request=null;removeArrow();setup();}
  });
  function findBoard(){return document.querySelector('chess-board,wc-chess-board,.board, cg-board');}
  function playerSide(el){
@@ -114,52 +115,77 @@
   }
   if(!turn){request=null;fen=null;return;}
   fen=[s.placement,turn,castling||'-',ep,half,full].join(' ');
-  if(!topic||!enabled){setStatus('Renseigne le canal ntfy dans le popup');return;}
+  if(!topic||!enabled){setStatus('Configure Cloudflare et ton canal dans le popup');return;}
   if(fen===seenFen)return;
   seenFen=fen;
   send(fen);
  }
- function send(currentFen){
-  const id=crypto.randomUUID();
-  request={id,fen:currentFen,started:Date.now()};
-  setStatus('Analyse sur iPhone…');
-  chrome.runtime.sendMessage({type:'ANALYZE',topic,fen:currentFen,requestId:id},res=>{
-   if(request?.id!==id)return; // A newer position has replaced this request.
-   if(chrome.runtime.lastError||!res?.ok){
-    if(res?.rateLimited){
-     request=null;
-     setStatus('ntfy limité : réessaie dans '+(res.retryAfterSeconds||60)+' s. Le moteur iPhone fonctionne.');
-    }else setStatus('Erreur envoi : '+(res?.error||chrome.runtime.lastError?.message||'inconnue'));
-   }
-  });
+
+ function websocketBase(){
+  try{
+   const u=new URL(relayUrl.trim());
+   if(u.protocol!=='https:'&&!(u.protocol==='http:'&&['localhost','127.0.0.1'].includes(u.hostname)))return null;
+   if(u.username||u.password||u.search||u.hash)return null;
+   return (u.protocol==='https:'?'wss:':'ws:')+'//'+u.host;
+  }catch{return null;}
  }
- function check(){
-  const r=request;if(!r||!enabled||!topic||checkInFlight)return;
-  if(Date.now()-r.started>90000){request=null;setStatus('Pas de réponse iPhone (Safari ouvert ?)');return;}
-  checkInFlight=true;
-  chrome.runtime.sendMessage({type:'CHECK',topic,fen:r.fen,requestId:r.id},res=>{
-   checkInFlight=false;
-   if(res?.rateLimited){
-    setStatus('ntfy limité : prochaine tentative dans '+(res.retryAfterSeconds||60)+' s.');
-    return;
-   }
-   if(chrome.runtime.lastError||!res?.result||request?.id!==r.id||fen!==r.fen)return;
-   const move=res.result.move;
+ function disconnect(){
+  clearTimeout(reconnectTimer);
+  if(relaySocket){relaySocket.onclose=null;relaySocket.close();relaySocket=null;}
+ }
+ function connect(){
+  disconnect();
+  const base=websocketBase();
+  if(!enabled||!base||!/^[A-Za-z0-9_-]{32,100}$/.test(topic)){
+   setStatus('Configure le Worker Cloudflare et un canal secret de 32 caractères dans le popup.');
+   return;
+  }
+  const sock=new WebSocket(base+'/ws/'+encodeURIComponent(topic)+'?role=pc');
+  relaySocket=sock;
+  setStatus('Connexion Cloudflare…');
+  sock.onopen=()=>setStatus('Cloudflare connecté : attente d’une position.');
+  sock.onmessage=e=>{
+   let msg;try{msg=JSON.parse(e.data);}catch{return;}
+   if(msg.type==='relay-error'){setStatus('Relais : '+msg.error);return;}
+   if(msg.type==='peer'){setStatus(msg.online?'iPhone connecté au relais.':'iPhone déconnecté du relais.');return;}
+   if(msg.type!=='chess-result')return;
+   const r=request;
+   if(!r||r.id!==msg.requestId||r.fen!==msg.fen||fen!==r.fen)return;
+   const move=msg.move;
    if(!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move))return;
-   // Never display a move for the wrong side or an outdated board.
-   const current=scan();
-   const turn=r.fen.split(' ')[1],from=move.slice(0,2),to=move.slice(2,4);
+   const current=scan(),turn=r.fen.split(' ')[1],from=move.slice(0,2),to=move.slice(2,4);
    const sourcePiece=current?.map[from],destinationPiece=current?.map[to];
    const sourceColor=sourcePiece?(sourcePiece===sourcePiece.toUpperCase()?'w':'b'):null;
    const destinationColor=destinationPiece?(destinationPiece===destinationPiece.toUpperCase()?'w':'b'):null;
-   if(!current||current.placement!==r.fen.split(' ')[0]||
-      sourceColor!==turn||destinationColor===turn||turn!==playerSide(current.el)){
-    request=null;removeArrow();
-    setStatus('Réponse écartée : camp ou position incohérents. Attends le prochain coup.');
+   if(!current||current.placement!==r.fen.split(' ')[0]||sourceColor!==turn||
+     destinationColor===turn||turn!==playerSide(current.el)){
+    request=null;removeArrow();setStatus('Résultat refusé : position ou camp incohérent.');
     return;
    }
-   request=null;showArrow(move);setStatus('Meilleur coup : '+move.slice(0,2)+' → '+move.slice(2,4)+' · '+(res.result.evaluation||''));
-  });
+   request=null;showArrow(move);setStatus('Analyse : '+move.slice(0,2)+' → '+move.slice(2,4)+' · '+(msg.evaluation||''));
+  };
+  sock.onerror=()=>setStatus('Erreur réseau WebSocket Cloudflare.');
+  sock.onclose=()=>{
+   if(relaySocket!==sock)return;relaySocket=null;
+   setStatus('Cloudflare déconnecté : tentative de reconnexion.');
+   reconnectTimer=setTimeout(connect,3500);
+  };
+ }
+ function send(currentFen){
+  const id=crypto.randomUUID();
+  request={id,fen:currentFen,started:Date.now()};
+  if(!relaySocket||relaySocket.readyState!==WebSocket.OPEN){
+   request=null;
+   setStatus('Cloudflare non connecté : aucune position envoyée.');
+   return;
+  }
+  relaySocket.send(JSON.stringify({type:'chess-fen',requestId:id,fen:currentFen}));
+  setStatus('Position transmise à Stockfish sur iPhone…');
+ }
+ function check(){
+  if(request&&Date.now()-request.started>90000){
+   request=null;setStatus('Pas de réponse iPhone : Safari actif et Cloudflare connecté ?');
+  }
  }
  function setStatus(message){
   status=message;
@@ -188,7 +214,8 @@
   setTimeout(()=>{window.removeEventListener('resize',align);window.removeEventListener('scroll',align);},90000);
  }
  function setup(){
-  if(observation)observation.disconnect();if(timer)clearInterval(timer);if(pollTimer)clearInterval(pollTimer);
+  if(observation)observation.disconnect();
+  connect();if(timer)clearInterval(timer);if(pollTimer)clearInterval(pollTimer);
   const root=document.querySelector('main')||document.body;
   if(!root)return;
   observation=new MutationObserver(()=>{if(!enabled)return;clearTimeout(window.__ctDebounce);window.__ctDebounce=setTimeout(position,420);});
