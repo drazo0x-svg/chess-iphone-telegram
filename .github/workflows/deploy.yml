@@ -32,6 +32,11 @@ jobs:
           cp /tmp/chess-stockfish-18/node_modules/stockfish/bin/stockfish-18-lite-single.wasm site/
           test -s site/stockfish-18-lite-single.js
           test -s site/stockfish-18-lite-single.wasm
+          mkdir -p site/multithread/engine
+          cp /tmp/chess-stockfish/node_modules/stockfish/bin/stockfish-19-lite.js site/multithread/engine/
+          cp /tmp/chess-stockfish/node_modules/stockfish/bin/stockfish-19-lite.wasm site/multithread/engine/
+          test -s site/multithread/engine/stockfish-19-lite.js
+          test -s site/multithread/engine/stockfish-19-lite.wasm
           cp /tmp/chess-stockfish/node_modules/stockfish/bin/stockfish-19-lite-single.js site/
           cp /tmp/chess-stockfish/node_modules/stockfish/bin/stockfish-19-lite-single.wasm site/
           cp /tmp/chess-stockfish/node_modules/stockfish/bin/stockfish-19-asm.js site/
