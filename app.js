@@ -69,10 +69,15 @@ function processEngineLine(line){
    return;
   }
   const nice=move.slice(0,2)+' → '+move.slice(2,4)+(move.length>4?' = '+move.slice(4):'');
-  $('result').textContent=nice;
-  $('details').textContent=task.fen;
-  status('Calcul terminé, transmission vers Chrome…');
-  publishResult(task,move,latestEval||'—');
+  // A more recent position has arrived: do not transmit a stale move.
+  if(!queued){
+   $('result').textContent=nice;
+   $('details').textContent=task.fen;
+   status('Calcul terminé, transmission vers Chrome…');
+   publishResult(task,move,latestEval||'—');
+  }else{
+   diag('Résultat ancien ignoré ; analyse de la nouvelle position.');
+  }
   if(queued){
    const next=queued;queued=null;
    setTimeout(()=>analyze(next.fen,next.requestId),0);
