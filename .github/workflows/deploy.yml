@@ -1,4 +1,5 @@
 name: Publish iPhone chess training site
+# Clean deployment after switching Pages source to GitHub Actions
 on:
   push:
     branches: [main]
