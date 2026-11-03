@@ -85,13 +85,6 @@
  function mover(oldMap,newMap){
   return window.ChessTrainingTransitions?.match(oldMap,newMap,ep,castling)||null;
  }
- function supportedTrainingPage(){
-  const host=location.hostname,path=location.pathname.toLowerCase();
-  // Never offer live-player assistance. Review/study/puzzles only.
-  if(host.endsWith('chess.com'))return /^\/(analysis|puzzles|lessons|practice|game\/analysis)(\/|$)/.test(path);
-  if(host==='lichess.org')return /^\/(analysis|study|training|practice)(\/|$)/.test(path);
-  return false;
- }
  function updateRights(move,map){
   if(!move)return;
   if(move.piece==='K')castling=castling.replace(/[KQ]/g,'');
@@ -107,12 +100,6 @@
  }
  function position(){
   if(!enabled)return;
-  if(!supportedTrainingPage()){
-   if(request){request=null;fen=null;}
-   removeArrow();
-   setStatus('Analyse automatique désactivée sur les parties en direct. Ouvre une page d’analyse ou d’exercices.');
-   return;
-  }
   const s=scan();if(!s){setStatus('Échiquier non reconnu'+(scanDiagnostic?' ('+scanDiagnostic+')':''));return;}
   if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';pendingPlacement='';pendingSince=0;uncertainSince=0;removeArrow();}
   if(prev?.placement===s.placement){pendingPlacement='';uncertainSince=0;return;}
