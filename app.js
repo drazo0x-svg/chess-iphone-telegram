@@ -55,16 +55,17 @@ function processEngineLine(line){
   return;
  }
  if(line.startsWith('info ')&&line.includes(' score ')){
-  const m=line.match(/ score (cp|mate) (-?\\d+)/);
+  const m=line.match(/ score (cp|mate) (-?\d+)/);
   if(m)latestEval=m[1]==='cp'?(+m[2]/100).toFixed(2):'mat '+m[2];
  }
  if(line.startsWith('bestmove ')){
   busy=false;
   const task=running;running=null;
   if(!task)return;
-  const move=line.split(/\\s+/)[1];
+  const move=line.match(/^bestmove\s+(\S+)/)?.[1];
   if(!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move)){
-   status('Le moteur a retourné un coup invalide : '+move);
+   diag('Réponse brute du moteur : '+line);
+   status(move==='(none)'?'Aucun coup légal dans cette position (mat, pat ou FEN incorrecte).':'Réponse Stockfish illisible : '+line);
    return;
   }
   const nice=move.slice(0,2)+' → '+move.slice(2,4)+(move.length>4?' = '+move.slice(4):'');
@@ -95,7 +96,7 @@ function engineInit(){
   worker.onmessageerror=()=>{if(engine===worker)fallback('Erreur de message du moteur');};
   worker.onmessage=e=>{
    if(engine!==worker)return;
-   const lines=String(e.data||'').split(/\\r?\\n/);
+   const lines=String(e.data||'').split(/\r?\n/);
    for(const line of lines)processEngineLine(line.trim());
   };
   engineTimeout=setTimeout(()=>{
