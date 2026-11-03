@@ -1,15 +1,16 @@
 'use strict';
 const $=id=>document.getElementById(id);
-chrome.storage.local.get({topic:'',relayUrl:'',enabled:true,playerColor:'auto'},settings=>{
+const DEFAULT_RELAY='https://chess-iphone-telegram.ptitfilsson.workers.dev';
+chrome.storage.local.get({topic:'',relayUrl:DEFAULT_RELAY,enabled:true,playerColor:'auto'},settings=>{
  $('topic').value=settings.topic||'';
- $('relayUrl').value=settings.relayUrl||'';
+ $('relayUrl').value=DEFAULT_RELAY;
  $('enabled').checked=!!settings.enabled;
  $('playerColor').value=settings.playerColor||'auto';
  $('status').textContent='Réglages chargés. Ouvre un échiquier pris en charge.';
 });
 function save(){
  const topic=$('topic').value.trim();
- chrome.storage.local.set({topic,relayUrl:$('relayUrl').value.trim(),enabled:$('enabled').checked,playerColor:$('playerColor').value},()=>{
+ chrome.storage.local.set({topic,relayUrl:DEFAULT_RELAY,enabled:$('enabled').checked,playerColor:$('playerColor').value},()=>{
   $('status').textContent=topic.length<32?'Renseigne le canal secret de l’iPhone.':'Paramètres enregistrés. Détection automatique active sur les onglets compatibles.';
  });
 }
