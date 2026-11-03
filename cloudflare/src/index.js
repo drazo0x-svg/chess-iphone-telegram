@@ -16,7 +16,7 @@ export default {
     if(role!=="pc"&&role!=="phone") return json({error:"role must be pc or phone"},400);
     if(request.headers.get("Upgrade")?.toLowerCase()!=="websocket") return json({error:"WebSocket required"},426);
     const objectId=env.CHESS_ROOMS.idFromName(room);
-    return env.CHESS_ROOMS.get(objectId).fetch(new Request("https://internal/ws?role="+role,{headers:request.headers}));
+    return env.CHESS_ROOMS.get(objectId).fetch(request);
   }
 };
 export class ChessRoom extends DurableObject {
