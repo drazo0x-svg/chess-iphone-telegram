@@ -1,15 +1,18 @@
 'use strict';
 const $=id=>document.getElementById(id);
-chrome.storage.local.get({topic:'',enabled:true},settings=>{
+chrome.storage.local.get({topic:'',enabled:true,playerColor:'auto'},settings=>{
  $('topic').value=settings.topic||'';
  $('enabled').checked=!!settings.enabled;
+ $('playerColor').value=settings.playerColor||'auto';
  $('status').textContent='Réglages chargés. Ouvre un échiquier pris en charge.';
 });
 function save(){
  const topic=$('topic').value.trim();
- chrome.storage.local.set({topic,enabled:$('enabled').checked},()=>{
+ chrome.storage.local.set({topic,enabled:$('enabled').checked,playerColor:$('playerColor').value},()=>{
   $('status').textContent=topic.length<12?'Renseigne le canal ntfy de l’iPhone.':'Paramètres enregistrés. Détection automatique active sur les onglets compatibles.';
  });
 }
 $('topic').addEventListener('input',save);
 $('enabled').addEventListener('change',save);
+
+$('playerColor').addEventListener('change',save);
