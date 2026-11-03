@@ -13,7 +13,14 @@
   if(ch.playerColor)playerColor=ch.playerColor.newValue||'auto';
   if(ch.topic||ch.relayUrl||ch.enabled||ch.initialTurn||ch.playerColor){prev=null;seenFen='';request=null;removeArrow();setup();}
  });
- function findBoard(){return document.querySelector('chess-board,wc-chess-board,.board, cg-board');}
+ function findBoard(){
+  const candidates=[...document.querySelectorAll('chess-board,wc-chess-board,cg-board,.board')];
+  // Prefer a visible board containing real piece elements, not a preview or overlay.
+  return candidates.filter(el=>{
+   const r=el.getBoundingClientRect();
+   return r.width>180&&r.height>180&&el.querySelectorAll('piece,.piece').length>=2;
+  }).sort((x,y)=>y.querySelectorAll('piece,.piece').length-x.querySelectorAll('piece,.piece').length)[0]||null;
+ }
  function playerSide(el){
   if(playerColor==='black')return 'b';
   if(playerColor==='white')return 'w';
@@ -30,32 +37,51 @@
   const rows=[];for(let r=8;r>=1;r--){let row='',n=0;for(let f=1;f<=8;f++){const p=map[F[f-1]+r];if(!p)n++;else{if(n)row+=n;n=0;row+=p;}}if(n)row+=n;rows.push(row);}return rows.join('/');
  }
  function scan(){
-  const el=findBoard();if(!el)return null;
-  const root=el.querySelector('cg-board')||el,items=root.querySelectorAll('piece,.piece'),map={};
+  const el=findBoard();
+  if(!el)return null;
+  const root=el.querySelector('cg-board')||el;
+  const items=[...root.querySelectorAll('piece,.piece')];
+  const map={};
+  let interpreted=0;
   for(const e of items){
    const cls=typeof e.className==='string'?e.className:'';
-   let type=null,color=null,coord=null,m;
-   m=cls.match(/(?:^|\s)([wb])([pnbrqk])(?=\s|$)/i);
+   const m=cls.match(/(?:^|\s)([wb])([pnbrqk])(?=\s|$)/i);
+   const named=cls.match(/\b(white|black)\b.*?\b(pawn|knight|bishop|rook|queen|king)\b/i);
+   let color=null,type=null,coord=null;
    if(m){color=m[1].toLowerCase();type=m[2].toLowerCase();}
-   else {m=cls.match(/(?:^|\s)(white|black)(?:\s)+(pawn|knight|bishop|rook|queen|king)(?=\s|$)/i);
-    if(m){color=m[1].toLowerCase()==='white'?'w':'b';type={pawn:'p',knight:'n',bishop:'b',rook:'r',queen:'q',king:'k'}[m[2].toLowerCase()];}}
-   if(!type)continue;
-   m=cls.match(/(?:^|\s)square-([1-8])([1-8])(?=\s|$)/);
-   if(m)coord=F[+m[1]-1]+m[2];
-   // Lichess piece transforms use CSS translates relative to square size.
-   if(!coord){
-    const tr=e.style.transform||'',t=tr.match(/translate(?:3d)?\(\s*([\d.-]+)px\s*,\s*([\d.-]+)px/i);
-    const size=root.getBoundingClientRect().width/8;
-    if(t&&size>0){const x=Math.round(+t[1]/size),y=Math.round(+t[2]/size);if(x>=0&&x<8&&y>=0&&y<8){
-     const blackBottom=root.closest('.orientation-black')||el.classList.contains('orientation-black');
-     coord=F[blackBottom?7-x:x]+(blackBottom?y+1:8-y);
-    }}
+   else if(named){
+    color=named[1].toLowerCase()==='white'?'w':'b';
+    type={pawn:'p',knight:'n',bishop:'b',rook:'r',queen:'q',king:'k'}[named[2].toLowerCase()];
    }
-   if(coord)map[coord]=color==='w'?type.toUpperCase():type;
+   if(!type)continue;
+   let hit=cls.match(/\bsquare-([1-8])([1-8])\b/);
+   if(hit)coord=F[+hit[1]-1]+hit[2];
+   if(!coord){
+    const tr=e.style.transform||'';
+    const mt=tr.match(/translate(?:3d)?\(\s*([+-]?\d+(?:\.\d+)?)(px|%)\s*,\s*([+-]?\d+(?:\.\d+)?)(px|%)/);
+    const cell=root.getBoundingClientRect().width/8;
+    if(mt&&cell>0){
+     const x=Math.round(+mt[1]*(mt[2]==='%'?1/100:1/cell));
+     const y=Math.round(+mt[3]*(mt[4]==='%'?1/100:1/cell));
+     if(x>=0&&x<8&&y>=0&&y<8){
+      const black=playerSide(el)==='b';
+      coord=F[black?7-x:x]+(black?y+1:8-y);
+     }
+    }
+   }
+   if(!coord)continue;
+   interpreted++;
+   map[coord]=color==='w'?type.toUpperCase():type;
   }
-  if(Object.values(map).filter(p=>p==='K').length!==1||Object.values(map).filter(p=>p==='k').length!==1)return null;
+  const pieces=Object.values(map);
+  if(pieces.filter(p=>p==='K').length!==1||pieces.filter(p=>p==='k').length!==1){
+   scanDiagnostic='Pièces lues : '+interpreted+'/'+items.length+' ; rois détectés : '+pieces.filter(p=>p==='K').length+' blanc, '+pieces.filter(p=>p==='k').length+' noir';
+   return null;
+  }
+  scanDiagnostic='';
   return {el,root,map,placement:toPlacement(map)};
  }
+ let scanDiagnostic='';
  function mover(oldMap,newMap){
   // Compare complete snapshots. Captures change two occupied squares but only one
   // piece changes colour/location; use the arriving piece to identify the mover.
@@ -100,7 +126,7 @@
  }
  function position(){
   if(!enabled)return;
-  const s=scan();if(!s){setStatus('Échiquier non reconnu');return;}
+  const s=scan();if(!s){setStatus('Échiquier non reconnu'+(scanDiagnostic?' ('+scanDiagnostic+')':''));return;}
   if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';pendingPlacement='';pendingSince=0;removeArrow();}
   if(prev?.placement===s.placement){pendingPlacement='';return;}
   // Wait until the DOM has stopped animating/replacing chess pieces.
