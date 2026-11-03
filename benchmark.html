@@ -2,4 +2,4 @@
 window.addEventListener('error',function(e){document.getElementById('status').textContent='Erreur JavaScript : '+(e.message||'Fichier introuvable');document.getElementById('run').disabled=false;});
 window.addEventListener('unhandledrejection',function(e){document.getElementById('status').textContent='Erreur : '+String(e.reason);document.getElementById('run').disabled=false;});
 document.getElementById('run').addEventListener('click',function(){document.getElementById('status').textContent='Bouton détecté : démarrage du test…';document.getElementById('result').textContent='Initialisation…';});
-</script><script src="./benchmark.js?v=20261103-2" onerror="document.getElementById('status').textContent='Impossible de charger benchmark.js. Recharge la page sans cache.'"></script></main></body></html>
+</script><script src="./benchmark-fixed-v4.js" onerror="document.getElementById('status').textContent='Impossible de charger benchmark.js. Recharge la page sans cache.'"></script></main></body></html>
