@@ -1,31 +1,24 @@
-# Analyse échecs : Chrome → iPhone 16 Pro → Chrome (sans Python, sans Telegram)
+# Chess Training AUTO — Stockfish sur iPhone 16 Pro
 
-Le dépôt contient une application Safari qui calcule les coups avec Stockfish 19 Lite sur l'iPhone 16 Pro, et une extension Chrome qui envoie une FEN et reçoit le coup calculé.
+**Architecture :** échiquier d'entraînement Chrome → FEN automatiquement reconstituée → canal ntfy → Stockfish 19 Lite exécuté dans Safari iPhone → canal ntfy de réponse → flèche et cases surlignées automatiquement dans l'onglet Chrome.
 
-## Site iPhone
-https://drazo0x-svg.github.io/chess-iphone-telegram/
+Pas de Telegram, pas de Python. Aucun clic « Scanner » après chaque coup.
 
-Le workflow GitHub Actions télécharge automatiquement les fichiers Stockfish lors de chaque déploiement. **Ne pas utiliser Telegram** : aucun token n'est nécessaire.
+## Installation
+1. Sur iPhone 16 Pro, ouvrir **https://drazo0x-svg.github.io/chess-iphone-telegram/** dans Safari.
+2. Générer un canal aléatoire, le copier, puis appuyer sur **Démarrer l'écoute**. Garder Safari ouvert au premier plan et l'iPhone éveillé.
+3. Sur PC, télécharger https://github.com/drazo0x-svg/chess-iphone-telegram/archive/refs/heads/main.zip et extraire l'archive.
+4. Chrome → `chrome://extensions` → Mode développeur → Charger l'extension non empaquetée → choisir **extension**.
+5. Si l'extension existait déjà, la **recharger** depuis `chrome://extensions`, puis actualiser la page d'échecs.
+6. Ouvrir son popup une fois pour coller le canal de l'iPhone et activer **Analyse automatique**.
+7. Ouvrir l'échiquier d'entraînement sur Chess.com ou Lichess. Après chaque changement de position reconnu, l'extension calcule l'état au trait et envoie une FEN. La réponse apparaît comme une flèche sur l'échiquier, même si le popup est fermé.
 
-## Configuration
-1. Ouvrir l'adresse ci-dessus dans Safari sur l'iPhone 16 Pro.
-2. Appuyer sur **Générer un canal aléatoire**, puis copier tout le canal.
-3. Appuyer sur **Démarrer l'écoute**. Garder Safari ouvert au premier plan, écran allumé.
-4. Sur le PC, ouvrir `chrome://extensions`, activer **Mode développeur**, **Charger l'extension non empaquetée**, et choisir le dossier `extension` téléchargé depuis ce dépôt.
-5. Ouvrir le popup de l'extension et coller le même canal.
-6. Sur un échiquier d'entraînement, coller la FEN complète (méthode fiable), ou essayer **Lire les pièces** (expérimental : il faut vérifier couleur au trait, roques et en passant).
-7. Cliquer **Calculer sur mon iPhone**, **garder le popup Chrome ouvert** jusqu'au retour du coup.
-
-## Comment ça fonctionne
-- Chrome envoie la FEN et un identifiant de requête aléatoire à un canal privé par obscurité sur ntfy.sh.
-- Safari écoute ce canal, fait calculer Stockfish localement sur l'iPhone.
-- Safari publie le meilleur coup UCI et le score moteur sur le canal de réponse, identifié par la même requête.
-- Le popup Chrome affiche le résultat quand il est ouvert.
-
-## Limites
-- Un canal ntfy non devinable n'est **pas** une authentification : une personne connaissant le nom pourrait lire ou envoyer les messages. Ne pas utiliser de données sensibles.
-- La session fonctionne uniquement tant que Safari reste actif sur l'iPhone ; iOS suspend les onglets en arrière-plan. La fenêtre popup Chrome doit rester ouverte pour afficher la réponse.
-- Aucun serveur personnel ni Telegram, aucune installation Python.
-- Score UCI exprimé du point de vue du moteur au trait, pas forcément de celui des Blancs.
-- Lecture automatique des pièces limitée aux échiquiers DOM compatibles, pas à une capture d'écran (aucun OCR).
-- À utiliser pour analyser des parties terminées ou des exercices où les aides extérieures sont autorisées.
+## Particularités
+- Le moteur analyse le **camp au trait après le dernier coup** (l'adversaire du joueur qui vient de jouer).
+- À l'ouverture au milieu d'une partie, le camp au trait est potentiellement inconnu : le choisir dans le popup ; idéalement commencer depuis la position initiale.
+- La FEN est reconstruite à partir des pièces et du suivi de leurs déplacements. Les droits de roque, prise en passant et les compteurs ne sont **pas garantis** si la partie était déjà commencée au moment du chargement.
+- Si l'échiquier ou la manière dont le site dessine les pièces change, la détection peut échouer. Ce système n'utilise pas d'OCR.
+- La flèche et les cases colorées sont ajoutées dans la page du navigateur, avec un petit indicateur d'état en bas à droite.
+- Safari doit rester ouvert et actif : iOS ne garantit pas l'exécution continue de JavaScript en arrière-plan.
+- Le relai utilise ntfy.sh sans authentification : choisir un canal long et aléatoire, ne jamais transmettre de données privées.
+- Usage réservé aux exercices, analyses de parties terminées et parties où l'assistance est autorisée.
