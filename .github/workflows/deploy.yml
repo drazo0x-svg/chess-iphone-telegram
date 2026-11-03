@@ -27,8 +27,10 @@ jobs:
           npm install --no-save --prefix /tmp/chess-stockfish stockfish@19.0.1
           cp /tmp/chess-stockfish/node_modules/stockfish/bin/stockfish-19-lite-single.js site/
           cp /tmp/chess-stockfish/node_modules/stockfish/bin/stockfish-19-lite-single.wasm site/
+          cp /tmp/chess-stockfish/node_modules/stockfish/bin/stockfish-19-asm.js site/
           test -s site/stockfish-19-lite-single.js
           test -s site/stockfish-19-lite-single.wasm
+          test -s site/stockfish-19-asm.js
           touch site/.nojekyll
       - name: Setup Pages
         uses: actions/configure-pages@v5
