@@ -3,7 +3,7 @@
  if(window.__chessTrainingV2)return;window.__chessTrainingV2=true;
  const F='abcdefgh',start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
  let topic='',relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev',enabled=true,playerColor='auto',initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
- let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,relaySocket=null,reconnectTimer=null,castling='KQkq',ep='-',half=0,full=1,ui=null;
+ let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,relaySocket=null,reconnectTimer=null,pendingPlacement='',pendingSince=0,castling='KQkq',ep='-',half=0,full=1,ui=null;
  chrome.storage.local.get({topic:'',relayUrl:'',enabled:true,playerColor:'auto',initialTurn:'auto'},v=>{topic=v.topic;relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev';enabled=v.enabled;playerColor=v.playerColor||'auto';initialTurn='auto';setup();});
  chrome.storage.onChanged.addListener(ch=>{
   if(ch.topic)topic=ch.topic.newValue||'';
@@ -57,20 +57,33 @@
   return {el,root,map,placement:toPlacement(map)};
  }
  function mover(oldMap,newMap){
-  const gone=[],added=[];
-  for(const key of new Set([...Object.keys(oldMap),...Object.keys(newMap)])){
-   if(oldMap[key]!==newMap[key]){
-    if(oldMap[key])gone.push({sq:key,p:oldMap[key]});
-    if(newMap[key])added.push({sq:key,p:newMap[key]});
+  // Compare complete snapshots. Captures change two occupied squares but only one
+  // piece changes colour/location; use the arriving piece to identify the mover.
+  const added=[],gone=[];
+  for(const k of new Set([...Object.keys(oldMap),...Object.keys(newMap)])){
+   if(oldMap[k]===newMap[k])continue;
+   if(oldMap[k])gone.push({sq:k,p:oldMap[k]});
+   if(newMap[k])added.push({sq:k,p:newMap[k]});
+  }
+  const matches=[];
+  for(const dest of added){
+   const color=dest.p===dest.p.toUpperCase()?'w':'b';
+   for(const src of gone){
+    if(src.sq===dest.sq)continue;
+    if((src.p===src.p.toUpperCase()?'w':'b')!==color)continue;
+    const promoting=src.p.toLowerCase()==='p'&&
+      (dest.sq[1]===(color==='w'?'8':'1'))&&
+      'qrbn'.includes(dest.p.toLowerCase());
+    if(src.p!==dest.p&&!promoting)continue;
+    const captured=newMap[src.sq]===undefined&&
+      (oldMap[dest.sq]===undefined||
+       ((oldMap[dest.sq]===oldMap[dest.sq].toUpperCase()?'w':'b')!==color));
+    if(captured)matches.push({color,from:src.sq,to:dest.sq,piece:src.p});
    }
   }
-  const candidates=gone.filter(x=>added.some(y=>y.p===x.p||x.p.toLowerCase()==='p'&&y.p.toLowerCase()!=='k'&&((x.p===x.p.toUpperCase())===(y.p===y.p.toUpperCase()))));
-  if(!candidates.length)return null;
-  // Ignore captured piece removals by prioritizing the colour which appears at a destination.
-  const picked=candidates.find(x=>added.some(y=>y.p===x.p&&y.sq!==x.sq))||candidates[0];
-  const target=added.find(y=>y.p===picked.p&&y.sq!==picked.sq)||added.find(y=>(y.p===y.p.toUpperCase())===(picked.p===picked.p.toUpperCase())&&y.sq!==picked.sq);
-  if(!target)return null;
-  return {color:picked.p===picked.p.toUpperCase()?'w':'b',from:picked.sq,to:target.sq,piece:picked.p};
+  // Castling and concurrent animations can look like multiple separate moves.
+  // Never guess a colour when the observed transition is ambiguous.
+  return matches.length===1?matches[0]:null;
  }
  function updateRights(move,map){
   if(!move)return;
@@ -88,12 +101,24 @@
  function position(){
   if(!enabled)return;
   const s=scan();if(!s){setStatus('Échiquier non reconnu');return;}
-  if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';removeArrow();}
-  if(prev?.placement===s.placement)return;
+  if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';pendingPlacement='';pendingSince=0;removeArrow();}
+  if(prev?.placement===s.placement){pendingPlacement='';return;}
+  // Wait until the DOM has stopped animating/replacing chess pieces.
+  if(pendingPlacement!==s.placement){
+   pendingPlacement=s.placement;pendingSince=Date.now();return;
+  }
+  if(Date.now()-pendingSince<700)return;
+  pendingPlacement='';
   let turn=null,played=null;
   if(prev){
    const move=mover(prev.map,s.map);
-   if(!move){prev=s;setStatus('Mouvement incertain : vérifie la position');removeArrow();return;}
+   if(!move){
+    // New game, board reconstruction or an animation, not necessarily a bad move.
+    // Resynchronise silently; await the next clear single move instead.
+    prev=s;request=null;fen=null;seenFen='';removeArrow();
+    setStatus('Échiquier synchronisé. En attente du prochain mouvement.');
+    return;
+   }
    played=move.color;
    turn=move.color==='w'?'b':'w';updateRights(move,s.map);if(move.color==='b')full++;
    half=move.piece.toLowerCase()==='p'?0:half+1;
@@ -215,6 +240,7 @@
  }
  function setup(){
   if(observation)observation.disconnect();
+  pendingPlacement='';pendingSince=0;
   connect();if(timer)clearInterval(timer);if(pollTimer)clearInterval(pollTimer);
   const root=document.querySelector('main')||document.body;
   if(!root)return;
