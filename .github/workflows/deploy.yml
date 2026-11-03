@@ -24,7 +24,7 @@ jobs:
         run: |
           set -eux
           mkdir -p site
-          cp index.html app.js benchmark.html benchmark.js site/
+          cp index.html app.js benchmark.html benchmark.js benchmark-fixed-v4.js site/
           npm install --no-save --prefix /tmp/chess-stockfish stockfish@19.0.1
           cp /tmp/chess-stockfish/node_modules/stockfish/bin/stockfish-19-lite-single.js site/
           cp /tmp/chess-stockfish/node_modules/stockfish/bin/stockfish-19-lite-single.wasm site/
