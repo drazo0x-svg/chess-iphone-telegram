@@ -1,0 +1,40 @@
+name: Publish iPhone chess training site
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare site and Stockfish 19 Lite
+        run: |
+          set -eux
+          mkdir -p site
+          cp index.html app.js site/
+          curl --fail --location --retry 3 --output site/stockfish-19-lite-single.js https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/stockfish-19-lite-single.js
+          curl --fail --location --retry 3 --output site/stockfish-19-lite-single.wasm https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/stockfish-19-lite-single.wasm
+          test -s site/stockfish-19-lite-single.js
+          test -s site/stockfish-19-lite-single.wasm
+          touch site/.nojekyll
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Deploy website
+        id: deployment
+        uses: actions/deploy-pages@v4
