@@ -34,4 +34,4 @@ go.onclick=()=>{
  };
  worker.postMessage('uci');
 };
-copy.onclick=()=>{if(latest)navigator.clipboard.writeText(latest).then(()=>status.textContent='Résultat copié. Colle-le dans la conversation.').catch(()=>status.textContent='Copie indisponible. Sélectionne les valeurs affichées.'));};
+copy.onclick=()=>{if(latest)navigator.clipboard.writeText(latest).then(()=>status.textContent='Résultat copié. Colle-le dans la conversation.').catch(()=>status.textContent='Copie indisponible. Sélectionne les valeurs affichées.');};
