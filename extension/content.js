@@ -3,7 +3,7 @@
  if(window.__chessTrainingV2)return;window.__chessTrainingV2=true;
  const F='abcdefgh',start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
  let topic='',relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev',enabled=true,playerColor='auto',initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
- let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,relaySocket=null,reconnectTimer=null,pendingPlacement='',pendingSince=0,castling='KQkq',ep='-',half=0,full=1,ui=null;
+ let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,relaySocket=null,reconnectTimer=null,pendingPlacement='',pendingSince=0,uncertainSince=0,castling='KQkq',ep='-',half=0,full=1,ui=null;
  chrome.storage.local.get({topic:'',relayUrl:'',enabled:true,playerColor:'auto',initialTurn:'auto'},v=>{topic=v.topic;relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev';enabled=v.enabled;playerColor=v.playerColor||'auto';initialTurn='auto';setup();});
  chrome.storage.onChanged.addListener(ch=>{
   if(ch.topic)topic=ch.topic.newValue||'';
@@ -83,33 +83,14 @@
  }
  let scanDiagnostic='';
  function mover(oldMap,newMap){
-  // Compare complete snapshots. Captures change two occupied squares but only one
-  // piece changes colour/location; use the arriving piece to identify the mover.
-  const added=[],gone=[];
-  for(const k of new Set([...Object.keys(oldMap),...Object.keys(newMap)])){
-   if(oldMap[k]===newMap[k])continue;
-   if(oldMap[k])gone.push({sq:k,p:oldMap[k]});
-   if(newMap[k])added.push({sq:k,p:newMap[k]});
-  }
-  const matches=[];
-  for(const dest of added){
-   const color=dest.p===dest.p.toUpperCase()?'w':'b';
-   for(const src of gone){
-    if(src.sq===dest.sq)continue;
-    if((src.p===src.p.toUpperCase()?'w':'b')!==color)continue;
-    const promoting=src.p.toLowerCase()==='p'&&
-      (dest.sq[1]===(color==='w'?'8':'1'))&&
-      'qrbn'.includes(dest.p.toLowerCase());
-    if(src.p!==dest.p&&!promoting)continue;
-    const captured=newMap[src.sq]===undefined&&
-      (oldMap[dest.sq]===undefined||
-       ((oldMap[dest.sq]===oldMap[dest.sq].toUpperCase()?'w':'b')!==color));
-    if(captured)matches.push({color,from:src.sq,to:dest.sq,piece:src.p});
-   }
-  }
-  // Castling and concurrent animations can look like multiple separate moves.
-  // Never guess a colour when the observed transition is ambiguous.
-  return matches.length===1?matches[0]:null;
+  return window.ChessTrainingTransitions?.match(oldMap,newMap,ep,castling)||null;
+ }
+ function supportedTrainingPage(){
+  const host=location.hostname,path=location.pathname.toLowerCase();
+  // Never offer live-player assistance. Review/study/puzzles only.
+  if(host.endsWith('chess.com'))return /^\/(analysis|puzzles|lessons|practice|game\/analysis)(\/|$)/.test(path);
+  if(host==='lichess.org')return /^\/(analysis|study|training|practice)(\/|$)/.test(path);
+  return false;
  }
  function updateRights(move,map){
   if(!move)return;
@@ -126,9 +107,15 @@
  }
  function position(){
   if(!enabled)return;
+  if(!supportedTrainingPage()){
+   if(request){request=null;fen=null;}
+   removeArrow();
+   setStatus('Analyse automatique désactivée sur les parties en direct. Ouvre une page d’analyse ou d’exercices.');
+   return;
+  }
   const s=scan();if(!s){setStatus('Échiquier non reconnu'+(scanDiagnostic?' ('+scanDiagnostic+')':''));return;}
-  if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';pendingPlacement='';pendingSince=0;removeArrow();}
-  if(prev?.placement===s.placement){pendingPlacement='';return;}
+  if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';pendingPlacement='';pendingSince=0;uncertainSince=0;removeArrow();}
+  if(prev?.placement===s.placement){pendingPlacement='';uncertainSince=0;return;}
   // Wait until the DOM has stopped animating/replacing chess pieces.
   if(pendingPlacement!==s.placement){
    pendingPlacement=s.placement;pendingSince=Date.now();return;
@@ -139,12 +126,20 @@
   if(prev){
    const move=mover(prev.map,s.map);
    if(!move){
-    // New game, board reconstruction or an animation, not necessarily a bad move.
-    // Resynchronise silently; await the next clear single move instead.
+    // Keep the last trustworthy board: never silently discard the move.
+    if(!uncertainSince)uncertainSince=Date.now();
+    if(Date.now()-uncertainSince<5000){
+     setStatus('Animation ou mouvement complexe détecté. Vérification de la position…');
+     return;
+    }
+    // A jump through move history or board reconstruction cannot be treated as one move.
+    // Only then establish a new baseline, and do not transmit an unverified FEN.
     prev=s;request=null;fen=null;seenFen='';removeArrow();
-    setStatus('Échiquier synchronisé. En attente du prochain mouvement.');
+    uncertainSince=0;
+    setStatus('Position changée hors d’un coup unique. Nouvelle référence établie.');
     return;
    }
+   uncertainSince=0;
    played=move.color;
    turn=move.color==='w'?'b':'w';updateRights(move,s.map);if(move.color==='b')full++;
    half=move.piece.toLowerCase()==='p'?0:half+1;
@@ -266,7 +261,7 @@
  }
  function setup(){
   if(observation)observation.disconnect();
-  pendingPlacement='';pendingSince=0;
+  pendingPlacement='';pendingSince=0;uncertainSince=0;
   connect();if(timer)clearInterval(timer);if(pollTimer)clearInterval(pollTimer);
   const root=document.querySelector('main')||document.body;
   if(!root)return;
