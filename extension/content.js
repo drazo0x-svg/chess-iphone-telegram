@@ -21,16 +21,16 @@
   for(const e of items){
    const cls=typeof e.className==='string'?e.className:'';
    let type=null,color=null,coord=null,m;
-   m=cls.match(/(?:^|\\s)([wb])([pnbrqk])(?=\\s|$)/i);
+   m=cls.match(/(?:^|\s)([wb])([pnbrqk])(?=\s|$)/i);
    if(m){color=m[1].toLowerCase();type=m[2].toLowerCase();}
-   else {m=cls.match(/(?:^|\\s)(white|black)(?:\\s)+(pawn|knight|bishop|rook|queen|king)(?=\\s|$)/i);
+   else {m=cls.match(/(?:^|\s)(white|black)(?:\s)+(pawn|knight|bishop|rook|queen|king)(?=\s|$)/i);
     if(m){color=m[1].toLowerCase()==='white'?'w':'b';type={pawn:'p',knight:'n',bishop:'b',rook:'r',queen:'q',king:'k'}[m[2].toLowerCase()];}}
    if(!type)continue;
-   m=cls.match(/(?:^|\\s)square-([1-8])([1-8])(?=\\s|$)/);
+   m=cls.match(/(?:^|\s)square-([1-8])([1-8])(?=\s|$)/);
    if(m)coord=F[+m[1]-1]+m[2];
    // Lichess piece transforms use CSS translates relative to square size.
    if(!coord){
-    const tr=e.style.transform||'',t=tr.match(/translate(?:3d)?\\(\\s*([\\d.-]+)px\\s*,\\s*([\\d.-]+)px/i);
+    const tr=e.style.transform||'',t=tr.match(/translate(?:3d)?\(\s*([\d.-]+)px\s*,\s*([\d.-]+)px/i);
     const size=root.getBoundingClientRect().width/8;
     if(t&&size>0){const x=Math.round(+t[1]/size),y=Math.round(+t[2]/size);if(x>=0&&x<8&&y>=0&&y<8){
      const blackBottom=root.closest('.orientation-black')||el.classList.contains('orientation-black');
