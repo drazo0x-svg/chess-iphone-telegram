@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Chess Training Relay",
+  "version": "1.0.0",
+  "description": "Envoie une FEN vers l'analyse locale iPhone pour l'entraînement.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://ntfy.sh/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
