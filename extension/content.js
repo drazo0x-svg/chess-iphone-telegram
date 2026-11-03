@@ -2,26 +2,28 @@
 (()=>{
  if(window.__chessTrainingV2)return;window.__chessTrainingV2=true;
  const F='abcdefgh',start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
- let topic='',enabled=true,initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
+ let topic='',enabled=true,playerColor='auto',initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
  let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,castling='KQkq',ep='-',half=0,full=1,ui=null;
- chrome.storage.local.get({topic:'',enabled:true,initialTurn:'auto'},v=>{topic=v.topic;enabled=v.enabled;initialTurn='auto';setup();});
+ chrome.storage.local.get({topic:'',enabled:true,playerColor:'auto',initialTurn:'auto'},v=>{topic=v.topic;enabled=v.enabled;playerColor=v.playerColor||'auto';initialTurn='auto';setup();});
  chrome.storage.onChanged.addListener(ch=>{
   if(ch.topic)topic=ch.topic.newValue||'';
   if(ch.enabled)enabled=!!ch.enabled.newValue;
   if(ch.initialTurn)initialTurn='auto';
-  if(ch.topic||ch.enabled||ch.initialTurn){prev=null;seenFen='';request=null;setup();}
+  if(ch.playerColor)playerColor=ch.playerColor.newValue||'auto';
+  if(ch.topic||ch.enabled||ch.initialTurn||ch.playerColor){prev=null;seenFen='';request=null;removeArrow();setup();}
  });
  function findBoard(){return document.querySelector('chess-board,wc-chess-board,.board, cg-board');}
  function playerSide(el){
-  // On Chess.com the board is flipped when the black pieces are at the bottom.
-  // Lichess uses orientation-black for the same visual state.
-  const nodes=[el,el?.parentElement,el?.parentElement?.parentElement,el?.closest('chess-board,wc-chess-board,.board-wrap,.cg-wrap,.round__app,.board-layout-main')];
-  for(const node of nodes){
-   if(!node)continue;
+  if(playerColor==='black')return 'b';
+  if(playerColor==='white')return 'w';
+  // Chess.com may apply "flipped" to the board itself or an enclosing wrapper.
+  // Lichess uses "orientation-black".
+  for(let node=el,depth=0;node&&depth<12;node=node.parentElement,depth++){
    if(node.matches?.('.flipped,.orientation-black,.board-flipped,[data-orientation="black"]'))return 'b';
-   if(node.closest?.('.orientation-black,.board-flipped,[data-orientation="black"]'))return 'b';
+   if(node.matches?.('.orientation-white,[data-orientation="white"]'))return 'w';
   }
-  return 'w';
+  // Without reliable orientation metadata, fail closed instead of assuming White.
+  return null;
  }
  function toPlacement(map){
   const rows=[];for(let r=8;r>=1;r--){let row='',n=0;for(let f=1;f<=8;f++){const p=map[F[f-1]+r];if(!p)n++;else{if(n)row+=n;n=0;row+=p;}}if(n)row+=n;rows.push(row);}return rows.join('/');
@@ -103,7 +105,9 @@
   // No analysis on initial load or after the player's own move.
   // It is scheduled only after a recognised opponent move.
   if(!played){request=null;fen=null;return;}
-  if(played===playerSide(s.el)){
+  const ownSide=playerSide(s.el);
+  if(!ownSide){request=null;fen=null;setStatus('Orientation inconnue : choisis ton camp dans l’extension.');return;}
+  if(played===ownSide){
    request=null;fen=null;
    setStatus('Ton coup détecté : analyse ignorée.');
    return;
@@ -158,7 +162,7 @@
   if(!board)return;
   removeArrow();
   const square=board.getBoundingClientRect(),w=square.width/8,h=square.height/8;
-  const host=board.closest('.orientation-black'),reverse=!!host||board.classList.contains('orientation-black');
+  const reverse=playerSide(board)==='b';
   const center=pos=>{const file=F.indexOf(pos[0]),rank=+pos[1]-1;return {x:(reverse?7-file:file)+.5,y:(reverse?rank:7-rank)+.5};};
   const a=center(move.slice(0,2)),b=center(move.slice(2,4));
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
