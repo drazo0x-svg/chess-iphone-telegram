@@ -1,29 +1,31 @@
-# Chess iPhone 16 Pro + Telegram (sans Python)
+# Analyse échecs : Chrome → iPhone 16 Pro → Chrome (sans Python, sans Telegram)
 
-Projet d'entraînement aux échecs : extension Chrome → relais ntfy → analyse locale Stockfish (Safari iPhone) → bot Telegram.
+Le dépôt contient une application Safari qui calcule les coups avec Stockfish 19 Lite sur l'iPhone 16 Pro, et une extension Chrome qui envoie une FEN et reçoit le coup calculé.
 
-## Sécurité
-Le **token Telegram montré dans la capture doit être révoqué** dans @BotFather avec `/revoke`. Ne publiez aucun token dans ce dépôt public, fichier JavaScript, URL ou issue.
+## Site iPhone
+https://drazo0x-svg.github.io/chess-iphone-telegram/
 
-## Étapes pour terminer l'installation
-1. Télécharger les fichiers officiels GPL-3.0 :
-   - https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/stockfish-19-lite-single.js
-   - https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/stockfish-19-lite-single.wasm
-2. Les téléverser à la **racine** du dépôt (à côté de index.html et app.js), sans les renommer.
-3. Ouvrir GitHub → Settings → Pages → Source: Deploy from a branch → Branch: main → Folder: /(root) → Save.
-4. Ouvrir https://drazo0x-svg.github.io/chess-iphone-telegram/ sur l'iPhone 16 Pro via Safari.
-5. Dans @BotFather, révoquer l'ancien token, puis copier le nouveau dans Safari, jamais dans GitHub.
-6. Dans Telegram, envoyer /start au bot. Pour connaître le Chat ID, consulter la réponse de getUpdates via une session privée et ne partager ni URL ni réponse contenant le token.
-7. Générer un canal aléatoire sur la page Safari et le reporter dans l'extension Chrome.
-8. Ouvrir la page Safari au premier plan, appuyer sur Démarrer l'écoute. Essayer Tester Telegram, puis Analyser cette position.
+Le workflow GitHub Actions télécharge automatiquement les fichiers Stockfish lors de chaque déploiement. **Ne pas utiliser Telegram** : aucun token n'est nécessaire.
 
-## Extension Chrome
-L'extension du ZIP précédent est à installer avec chrome://extensions → Mode développeur → Charger l'extension non empaquetée. Elle se trouve dans le dossier `extension/` du ZIP, distinct de ce site. Sa lecture DOM est expérimentale ; collez une FEN de préférence.
+## Configuration
+1. Ouvrir l'adresse ci-dessus dans Safari sur l'iPhone 16 Pro.
+2. Appuyer sur **Générer un canal aléatoire**, puis copier tout le canal.
+3. Appuyer sur **Démarrer l'écoute**. Garder Safari ouvert au premier plan, écran allumé.
+4. Sur le PC, ouvrir `chrome://extensions`, activer **Mode développeur**, **Charger l'extension non empaquetée**, et choisir le dossier `extension` téléchargé depuis ce dépôt.
+5. Ouvrir le popup de l'extension et coller le même canal.
+6. Sur un échiquier d'entraînement, coller la FEN complète (méthode fiable), ou essayer **Lire les pièces** (expérimental : il faut vérifier couleur au trait, roques et en passant).
+7. Cliquer **Calculer sur mon iPhone**, **garder le popup Chrome ouvert** jusqu'au retour du coup.
+
+## Comment ça fonctionne
+- Chrome envoie la FEN et un identifiant de requête aléatoire à un canal privé par obscurité sur ntfy.sh.
+- Safari écoute ce canal, fait calculer Stockfish localement sur l'iPhone.
+- Safari publie le meilleur coup UCI et le score moteur sur le canal de réponse, identifié par la même requête.
+- Le popup Chrome affiche le résultat quand il est ouvert.
 
 ## Limites
-- Le site est statique : GitHub Pages n'exécute **pas** Stockfish côté serveur ; Safari exécute Stockfish en WebAssembly et doit rester au premier plan.
-- Sans les deux fichiers Stockfish, la page s'affiche mais ne peut pas calculer.
-- Le relais ntfy.sh transporte les FEN et peut être lu par toute personne connaissant le canal. Utiliser un canal aléatoire.
-- Le token Telegram est sauvegardé dans le stockage local du navigateur iPhone ; ne prêtez pas l'appareil déverrouillé.
-- Le navigateur peut rencontrer des restrictions réseau/CORS sur l'API Telegram ; utilisez le bouton Tester Telegram pour vérifier.
-- Aucune analyse OCR d'image ; réservé à l'étude et aux parties où l'assistance est autorisée.
+- Un canal ntfy non devinable n'est **pas** une authentification : une personne connaissant le nom pourrait lire ou envoyer les messages. Ne pas utiliser de données sensibles.
+- La session fonctionne uniquement tant que Safari reste actif sur l'iPhone ; iOS suspend les onglets en arrière-plan. La fenêtre popup Chrome doit rester ouverte pour afficher la réponse.
+- Aucun serveur personnel ni Telegram, aucune installation Python.
+- Score UCI exprimé du point de vue du moteur au trait, pas forcément de celui des Blancs.
+- Lecture automatique des pièces limitée aux échiquiers DOM compatibles, pas à une capture d'écran (aucun OCR).
+- À utiliser pour analyser des parties terminées ou des exercices où les aides extérieures sont autorisées.
