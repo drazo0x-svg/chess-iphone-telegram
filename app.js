@@ -1,10 +1,11 @@
 'use strict';
 const $=id=>document.getElementById(id);
+const DEFAULT_RELAY='https://chess-iphone-telegram.ptitfilsson.workers.dev';
 let source=null,engine=null,ready=false,busy=false,queued=null,running=null,latestEval='',active=false,engineTimeout=null;
 let diagnostics=[];
 function diag(message){diagnostics.push(message);if(diagnostics.length>12)diagnostics.shift();const element=document.getElementById('diagnostics');if(element)element.textContent=diagnostics.join('\n');}
 const seen=new Set();
-try{const saved=JSON.parse(localStorage.getItem('chessConfig')||'{}');for(const k of ['topic','seconds','relay'])if(saved[k])$(k).value=saved[k];}catch{}
+try{const saved=JSON.parse(localStorage.getItem('chessConfig')||'{}');for(const k of ['topic','seconds'])if(saved[k])$(k).value=saved[k];$('relay').value=DEFAULT_RELAY;}catch{$('relay').value=DEFAULT_RELAY;}
 const status=s=>$('status').textContent=s;
 function persist(){const o={};for(const k of ['topic','seconds','relay'])o[k]=$(k).value.trim();localStorage.setItem('chessConfig',JSON.stringify(o));}
 function validateFen(f){const t=f.trim().split(/\s+/);if(t.length!==6||!/^[wb]$/.test(t[1])||!/^(?:-|K?Q?k?q?)$/.test(t[2])||!/^(?:-|[a-h][36])$/.test(t[3])||!/^\d+$/.test(t[4])||!/^\d+$/.test(t[5])||Number(t[5])<1)throw Error('FEN invalide (6 champs requis)');const rows=t[0].split('/');if(rows.length!==8||rows.some(r=>!r||!/^[prnbqkPRNBQK1-8]+$/.test(r)||[...r].reduce((n,c)=>n+(/[1-8]/.test(c)?+c:1),0)!==8))throw Error('Rangs FEN invalides');const pieces=t[0];if([...pieces].filter(x=>x==='K').length!==1||[...pieces].filter(x=>x==='k').length!==1)throw Error('Il faut exactement deux rois, un de chaque couleur');}
