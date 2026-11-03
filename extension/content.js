@@ -12,6 +12,17 @@
   if(ch.topic||ch.enabled||ch.initialTurn){prev=null;seenFen='';request=null;setup();}
  });
  function findBoard(){return document.querySelector('chess-board,wc-chess-board,.board, cg-board');}
+ function playerSide(el){
+  // On Chess.com the board is flipped when the black pieces are at the bottom.
+  // Lichess uses orientation-black for the same visual state.
+  const nodes=[el,el?.parentElement,el?.parentElement?.parentElement,el?.closest('chess-board,wc-chess-board,.board-wrap,.cg-wrap,.round__app,.board-layout-main')];
+  for(const node of nodes){
+   if(!node)continue;
+   if(node.matches?.('.flipped,.orientation-black,.board-flipped,[data-orientation="black"]'))return 'b';
+   if(node.closest?.('.orientation-black,.board-flipped,[data-orientation="black"]'))return 'b';
+  }
+  return 'w';
+ }
  function toPlacement(map){
   const rows=[];for(let r=8;r>=1;r--){let row='',n=0;for(let f=1;f<=8;f++){const p=map[F[f-1]+r];if(!p)n++;else{if(n)row+=n;n=0;row+=p;}}if(n)row+=n;rows.push(row);}return rows.join('/');
  }
@@ -76,10 +87,11 @@
   const s=scan();if(!s){setStatus('Échiquier non reconnu');return;}
   if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';removeArrow();}
   if(prev?.placement===s.placement)return;
-  let turn=null;
+  let turn=null,played=null;
   if(prev){
    const move=mover(prev.map,s.map);
    if(!move){prev=s;setStatus('Mouvement incertain : vérifie la position');removeArrow();return;}
+   played=move.color;
    turn=move.color==='w'?'b':'w';updateRights(move,s.map);if(move.color==='b')full++;
    half=move.piece.toLowerCase()==='p'?0:half+1;
   }else{
@@ -88,6 +100,14 @@
    else setStatus('Couleur au trait inconnue : détection au prochain coup');
   }
   prev=s;removeArrow();
+  // No analysis on initial load or after the player's own move.
+  // It is scheduled only after a recognised opponent move.
+  if(!played){request=null;fen=null;return;}
+  if(played===playerSide(s.el)){
+   request=null;fen=null;
+   setStatus('Ton coup détecté : analyse ignorée.');
+   return;
+  }
   if(!turn){request=null;fen=null;return;}
   fen=[s.placement,turn,castling||'-',ep,half,full].join(' ');
   if(!topic||!enabled){setStatus('Renseigne le canal ntfy dans le popup');return;}
