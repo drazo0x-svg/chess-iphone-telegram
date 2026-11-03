@@ -133,6 +133,18 @@
    if(chrome.runtime.lastError||!res?.result||request?.id!==r.id||fen!==r.fen)return;
    const move=res.result.move;
    if(!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move))return;
+   // Never display a move for the wrong side or an outdated board.
+   const current=scan();
+   const turn=r.fen.split(' ')[1],from=move.slice(0,2),to=move.slice(2,4);
+   const sourcePiece=current?.map[from],destinationPiece=current?.map[to];
+   const sourceColor=sourcePiece?(sourcePiece===sourcePiece.toUpperCase()?'w':'b'):null;
+   const destinationColor=destinationPiece?(destinationPiece===destinationPiece.toUpperCase()?'w':'b'):null;
+   if(!current||current.placement!==r.fen.split(' ')[0]||
+      sourceColor!==turn||destinationColor===turn||turn!==playerSide(current.el)){
+    request=null;removeArrow();
+    setStatus('Réponse écartée : camp ou position incohérents. Attends le prochain coup.');
+    return;
+   }
    request=null;showArrow(move);setStatus('Meilleur coup : '+move.slice(0,2)+' → '+move.slice(2,4)+' · '+(res.result.evaluation||''));
   });
  }
