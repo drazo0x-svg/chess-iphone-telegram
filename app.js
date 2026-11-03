@@ -41,6 +41,11 @@ function processEngineLine(line){
  if(!line)return;
  if(line==='uciok'){
   diag('UCI initialisé ('+engineKind+').');
+  const configuredHash=Number(localStorage.getItem('chessOptimalHash'));
+  const hash=[16,32,64].includes(configuredHash)?configuredHash:16;
+  engine.postMessage('setoption name Threads value 1');
+  engine.postMessage('setoption name Hash value '+hash);
+  diag('Réglage : Hash '+hash+' Mio, 1 thread.');
   engine.postMessage('isready');
   return;
  }
