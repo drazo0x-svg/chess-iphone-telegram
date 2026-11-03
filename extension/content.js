@@ -2,12 +2,12 @@
 (()=>{
  if(window.__chessTrainingV2)return;window.__chessTrainingV2=true;
  const F='abcdefgh',start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
- let topic='',relayUrl='',enabled=true,playerColor='auto',initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
+ let topic='',relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev',enabled=true,playerColor='auto',initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
  let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,relaySocket=null,reconnectTimer=null,castling='KQkq',ep='-',half=0,full=1,ui=null;
- chrome.storage.local.get({topic:'',relayUrl:'',enabled:true,playerColor:'auto',initialTurn:'auto'},v=>{topic=v.topic;relayUrl=v.relayUrl||'';enabled=v.enabled;playerColor=v.playerColor||'auto';initialTurn='auto';setup();});
+ chrome.storage.local.get({topic:'',relayUrl:'',enabled:true,playerColor:'auto',initialTurn:'auto'},v=>{topic=v.topic;relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev';enabled=v.enabled;playerColor=v.playerColor||'auto';initialTurn='auto';setup();});
  chrome.storage.onChanged.addListener(ch=>{
   if(ch.topic)topic=ch.topic.newValue||'';
-  if(ch.relayUrl)relayUrl=ch.relayUrl.newValue||'';
+  if(ch.relayUrl)relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev';
   if(ch.enabled)enabled=!!ch.enabled.newValue;
   if(ch.initialTurn)initialTurn='auto';
   if(ch.playerColor)playerColor=ch.playerColor.newValue||'auto';
