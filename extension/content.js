@@ -3,7 +3,7 @@
  if(window.__chessTrainingV2)return;window.__chessTrainingV2=true;
  const F='abcdefgh',start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
  let topic='',enabled=true,initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
- let observation=null,overlay=null,timer=null,pollTimer=null,sendTime=0,castling='KQkq',ep='-',half=0,full=1,ui=null;
+ let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,castling='KQkq',ep='-',half=0,full=1,ui=null;
  chrome.storage.local.get({topic:'',enabled:true,initialTurn:'auto'},v=>{topic=v.topic;enabled=v.enabled;initialTurn='auto';setup();});
  chrome.storage.onChanged.addListener(ch=>{
   if(ch.topic)topic=ch.topic.newValue||'';
@@ -100,14 +100,17 @@
   request={id,fen:currentFen,started:Date.now()};
   setStatus('Analyse sur iPhone…');
   chrome.runtime.sendMessage({type:'ANALYZE',topic,fen:currentFen,requestId:id},res=>{
+   if(request?.id!==id)return; // A newer position has replaced this request.
    if(chrome.runtime.lastError||!res?.ok)setStatus('Erreur envoi : '+(res?.error||chrome.runtime.lastError?.message||'inconnue'));
   });
  }
  function check(){
-  const r=request;if(!r||!enabled||!topic)return;
+  const r=request;if(!r||!enabled||!topic||checkInFlight)return;
   if(Date.now()-r.started>90000){request=null;setStatus('Pas de réponse iPhone (Safari ouvert ?)');return;}
+  checkInFlight=true;
   chrome.runtime.sendMessage({type:'CHECK',topic,fen:r.fen,requestId:r.id},res=>{
-   if(!res?.result||request?.id!==r.id||fen!==r.fen)return;
+   checkInFlight=false;
+   if(chrome.runtime.lastError||!res?.result||request?.id!==r.id||fen!==r.fen)return;
    const move=res.result.move;
    if(!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move))return;
    request=null;showArrow(move);setStatus('Meilleur coup : '+move.slice(0,2)+' → '+move.slice(2,4)+' · '+(res.result.evaluation||''));
@@ -145,6 +148,6 @@
   if(!root)return;
   observation=new MutationObserver(()=>{if(!enabled)return;clearTimeout(window.__ctDebounce);window.__ctDebounce=setTimeout(position,420);});
   observation.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style']});
-  timer=setInterval(position,1800);pollTimer=setInterval(check,2200);position();
+  timer=setInterval(position,1500);pollTimer=setInterval(check,1200);position();
  }
 })();
