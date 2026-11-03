@@ -15,29 +15,96 @@ async function publishResult(task,move,evaluation){
  try{
   const response=await fetch('https://ntfy.sh/'+encodeURIComponent(topic+'-result'),{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});
   if(!response.ok)throw Error('HTTP '+response.status);
-  status('Coup renvoyé à Chrome. Ouvre le popup de l’extension pour le voir.');
+  status('Coup renvoyé à l’extension Chrome.');
  }catch(error){status('Calcul terminé, mais envoi vers Chrome impossible : '+error.message);}
+}
+let engineKind='wasm',fallbackTried=false;
+function engineReset(){
+ if(engine)try{engine.terminate();}catch{}
+ clearTimeout(engineTimeout);
+ engine=null;ready=false;busy=false;running=null;
+}
+function fallback(reason){
+ diag('WASM indisponible : '+reason);
+ if(engineKind==='asm'||fallbackTried){
+  engineReset();
+  status('Stockfish ne démarre pas. Vérifie le diagnostic et recharge Safari.');
+  return;
+ }
+ fallbackTried=true;
+ engineReset();
+ engineKind='asm';
+ status('Mode de secours : chargement Stockfish JavaScript (sans WASM)…');
+ engineInit();
+}
+function processEngineLine(line){
+ if(!line)return;
+ if(line==='uciok'){
+  diag('UCI initialisé ('+engineKind+').');
+  engine.postMessage('isready');
+  return;
+ }
+ if(line==='readyok'){
+  clearTimeout(engineTimeout);
+  ready=true;
+  diag('Stockfish prêt ('+engineKind+').');
+  status(active?'Stockfish prêt, écoute active.':'Stockfish prêt.');
+  if(queued&&!busy){
+   const q=queued;queued=null;analyze(q.fen,q.requestId);
+  }
+  return;
+ }
+ if(line.startsWith('info ')&&line.includes(' score ')){
+  const m=line.match(/ score (cp|mate) (-?\\d+)/);
+  if(m)latestEval=m[1]==='cp'?(+m[2]/100).toFixed(2):'mat '+m[2];
+ }
+ if(line.startsWith('bestmove ')){
+  busy=false;
+  const task=running;running=null;
+  if(!task)return;
+  const move=line.split(/\\s+/)[1];
+  if(!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move)){
+   status('Le moteur a retourné un coup invalide : '+move);
+   return;
+  }
+  const nice=move.slice(0,2)+' → '+move.slice(2,4)+(move.length>4?' = '+move.slice(4):'');
+  $('result').textContent=nice;
+  $('details').textContent=task.fen;
+  status('Calcul terminé, transmission vers Chrome…');
+  publishResult(task,move,latestEval||'—');
+  if(queued){
+   const next=queued;queued=null;
+   setTimeout(()=>analyze(next.fen,next.requestId),0);
+  }
+ }
 }
 function engineInit(){
  if(engine)return;
- try {
-  status('Chargement du moteur Stockfish…');
-  diag('Création du Web Worker Stockfish…');
-  engine=new Worker('./stockfish-19-lite-single.js');
+ try{
+  const file=engineKind==='asm'?'stockfish-19-asm.js':'stockfish-19-lite-single.js';
+  diag('Chargement : '+file);
+  status('Initialisation de Stockfish '+(engineKind==='asm'?'JavaScript':'WebAssembly')+'…');
+  const worker=new Worker('./'+file);
+  engine=worker;
+  worker.onerror=e=>{
+   if(engine!==worker)return;
+   const detail=(e.message||'Erreur inconnue')+(e.filename?' dans '+e.filename:'');
+   diag('Erreur Worker : '+detail);
+   fallback(detail);
+  };
+  worker.onmessageerror=()=>{if(engine===worker)fallback('Erreur de message du moteur');};
+  worker.onmessage=e=>{
+   if(engine!==worker)return;
+   const lines=String(e.data||'').split(/\\r?\\n/);
+   for(const line of lines)processEngineLine(line.trim());
+  };
   engineTimeout=setTimeout(()=>{
-   if(!ready){
-    status('Stockfish ne répond pas après 25 secondes. Appuie sur Réinitialiser Stockfish et consulte le diagnostic.');
-    diag('Délai de 25 s dépassé : aucune réponse readyok. Vérifie Safari, le téléchargement du WASM ou les restrictions mémoire.');
-   }
-  },25000);
-  engine.onmessageerror=()=>{diag('Erreur de réception de message du moteur.');status('Erreur de communication avec Stockfish.');};
-  engine.onerror=e=>{clearTimeout(engineTimeout);ready=false;diag('Erreur Worker: '+(e.message||'inconnue')+' ligne '+(e.lineno||'?'));status('Erreur moteur Stockfish. '+(e.message||'Vérifie les fichiers JS et WASM.'));};
-  engine.onmessage=e=>{
-   const line=String(e.data).trim();
-   if(line==='uciok')diag('UCI initialisé.');
-   if(line==='readyok'){clearTimeout(engineTimeout);diag('Stockfish prêt à calculer.');}if(line==='uciok')engine.postMessage('isready');if(line==='readyok'){ready=true;status(active?'Moteur prêt, écoute active.':'Moteur prêt.');if(queued&&!busy){const q=queued;queued=null;analyze(q.fen,q.requestId);}}if(line.startsWith('info ')&&line.includes(' score ')){const x=line.match(/ score (cp|mate) (-?\d+)/);if(x)latestEval=x[1]==='cp'?((+x[2]/100).toFixed(2)):'mat '+x[2];}if(line.startsWith('bestmove ')){busy=false;const task=running;running=null;if(!task)return;const move=line.split(/\s+/)[1];const nice=move?.length>=4?move.slice(0,2)+' → '+move.slice(2,4)+(move.length>4?' = '+move.slice(4):''):move;$('result').textContent=nice;$('details').textContent=task.fen;
-status('Calcul terminé, transmission vers Chrome…');publishResult(task,move,latestEval||'—');
-if(queued){const q=queued;queued=null;setTimeout(()=>analyze(q.fen,q.requestId),0);}}};engine.postMessage('uci');}catch(e){diag('Échec du Worker : '+e.message);status('Impossible de démarrer Stockfish : '+e.message);}}
+   if(!ready&&engine===worker)fallback('Démarrage sans réponse UCI après 20 secondes');
+  },20000);
+  worker.postMessage('uci');
+ }catch(error){fallback(error.message||String(error));}
+}
+
 function analyze(fen,requestId=null){try{validateFen(fen);}catch(e){status(e.message);return;}engineInit();if(!ready||busy){queued={fen,requestId};status(!ready?'En attente de Stockfish : initialisation du moteur en cours…':'Stockfish termine la précédente analyse…');return;}busy=true;running={fen,requestId};latestEval='';status('Stockfish calcule sur cet iPhone…');engine.postMessage('ucinewgame');engine.postMessage('position fen '+fen);engine.postMessage('go movetime '+(Number($('seconds').value)||5)*1000);}
 $('generate').onclick=()=>{const v=new Uint8Array(24);crypto.getRandomValues(v);$('topic').value='chess-'+Array.from(v,x=>x.toString(16).padStart(2,'0')).join('');persist();status('Copie ce même canal dans ton extension Chrome.');};
 $('start').onclick=()=>{persist();const topic=$('topic').value.trim();if(!/^[a-zA-Z0-9_-]{12,100}$/.test(topic))return status('Canal invalide : au moins 12 caractères.');if(source)source.close();active=true;engineInit();source=new EventSource('https://ntfy.sh/'+encodeURIComponent(topic)+'/sse?since=10s');source.onopen=()=>status('Écoute du canal active.');source.onerror=()=>status('ntfy déconnecté : reconnexion automatique en cours.');source.onmessage=e=>{try{const env=JSON.parse(e.data);if(env.event!=='message')return;const m=JSON.parse(env.message);if(m.type!=='chess-fen'||!m.fen||!m.requestId||seen.has(m.requestId)||Math.abs(Date.now()-m.sent)>120000)return;seen.add(m.requestId);if(seen.size>100)seen.clear();analyze(m.fen,m.requestId);}catch(e){console.warn('Message ignoré',e);}};};
@@ -45,8 +112,7 @@ $('stop').onclick=()=>{active=false;if(source){source.close();source=null;}statu
 $('test').onclick=()=>{persist();analyze($('fen').value.trim());};
 $('reset-engine').onclick=()=>{
  if(source){source.close();source=null;active=false;}
- if(engine)engine.terminate();clearTimeout(engineTimeout);
- engine=null;ready=false;busy=false;queued=null;running=null;latestEval='';
+ engineReset();queued=null;latestEval='';engineKind='wasm';fallbackTried=false;
  diag('Réinitialisation demandée.');
  status('Moteur réinitialisé. Appuie sur Démarrer l’écoute pour relancer.');
 };
