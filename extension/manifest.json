@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Chess Training — iPhone Stockfish",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Analyse automatique des positions d'entraînement via Stockfish sur iPhone, avec flèche sur l'échiquier.",
   "permissions": [
     "storage"
@@ -9,9 +9,6 @@
   "host_permissions": [
     "https://*.workers.dev/*"
   ],
-  "background": {
-    "service_worker": "background.js"
-  },
   "content_scripts": [
     {
       "matches": [
