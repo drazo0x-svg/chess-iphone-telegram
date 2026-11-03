@@ -1,1 +1,1 @@
-# chess-iphone-telegram
+# chess-iphone
