@@ -125,7 +125,12 @@
   setStatus('Analyse sur iPhone…');
   chrome.runtime.sendMessage({type:'ANALYZE',topic,fen:currentFen,requestId:id},res=>{
    if(request?.id!==id)return; // A newer position has replaced this request.
-   if(chrome.runtime.lastError||!res?.ok)setStatus('Erreur envoi : '+(res?.error||chrome.runtime.lastError?.message||'inconnue'));
+   if(chrome.runtime.lastError||!res?.ok){
+    if(res?.rateLimited){
+     request=null;
+     setStatus('ntfy limité : réessaie dans '+(res.retryAfterSeconds||60)+' s. Le moteur iPhone fonctionne.');
+    }else setStatus('Erreur envoi : '+(res?.error||chrome.runtime.lastError?.message||'inconnue'));
+   }
   });
  }
  function check(){
@@ -134,6 +139,10 @@
   checkInFlight=true;
   chrome.runtime.sendMessage({type:'CHECK',topic,fen:r.fen,requestId:r.id},res=>{
    checkInFlight=false;
+   if(res?.rateLimited){
+    setStatus('ntfy limité : prochaine tentative dans '+(res.retryAfterSeconds||60)+' s.');
+    return;
+   }
    if(chrome.runtime.lastError||!res?.result||request?.id!==r.id||fen!==r.fen)return;
    const move=res.result.move;
    if(!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move))return;
@@ -184,6 +193,6 @@
   if(!root)return;
   observation=new MutationObserver(()=>{if(!enabled)return;clearTimeout(window.__ctDebounce);window.__ctDebounce=setTimeout(position,420);});
   observation.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style']});
-  timer=setInterval(position,1500);pollTimer=setInterval(check,1200);position();
+  timer=setInterval(position,1500);pollTimer=setInterval(check,12000);position();
  }
 })();
