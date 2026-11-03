@@ -92,7 +92,8 @@ function processEngineLine(line){
 function engineInit(){
  if(engine)return;
  try{
-  const file=engineKind==='asm'?'stockfish-19-asm.js':'stockfish-19-lite-single.js';
+  const preferredVersion=localStorage.getItem('chessEngineVersion')==='18'?'18':'19';
+  const file=engineKind==='asm'?'stockfish-19-asm.js':preferredVersion==='18'?'stockfish-18-lite-single.js':'stockfish-19-lite-single.js';
   diag('Chargement : '+file);
   status('Initialisation de Stockfish '+(engineKind==='asm'?'JavaScript':'WebAssembly')+'…');
   const worker=new Worker('./'+file);
