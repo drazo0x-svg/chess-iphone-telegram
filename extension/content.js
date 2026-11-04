@@ -3,7 +3,7 @@
  if(window.__chessTrainingV2)return;window.__chessTrainingV2=true;
  const F='abcdefgh',start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
  let topic='',relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev',enabled=true,playerColor='auto',initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
- let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,relaySocket=null,reconnectTimer=null,pendingPlacement='',pendingSince=0,uncertainSince=0,lastObservedPlacement='',castling='KQkq',ep='-',half=0,full=1,ui=null;
+ let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,relaySocket=null,reconnectTimer=null,pendingPlacement='',pendingSince=0,uncertainSince=0,castleAnimationSince=0,lastObservedPlacement='',castling='KQkq',ep='-',half=0,full=1,ui=null;
  chrome.storage.local.get({topic:'',relayUrl:'',enabled:true,playerColor:'auto',initialTurn:'auto'},v=>{topic=v.topic;relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev';enabled=v.enabled;playerColor=v.playerColor||'auto';initialTurn='auto';setup();});
  chrome.storage.onChanged.addListener(ch=>{
   if(ch.topic)topic=ch.topic.newValue||'';
@@ -101,10 +101,10 @@
  function position(){
   if(!enabled)return;
   const s=scan();if(!s){setStatus('Échiquier non reconnu'+(scanDiagnostic?' ('+scanDiagnostic+')':''));return;}
-  if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';pendingPlacement='';pendingSince=0;uncertainSince=0;lastObservedPlacement='';removeArrow();}
+  if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';pendingPlacement='';pendingSince=0;uncertainSince=0;castleAnimationSince=0;lastObservedPlacement='';removeArrow();}
   if(prev?.placement===s.placement){
    // The DOM has reverted to the last verified position; it was only an animation.
-   pendingPlacement='';uncertainSince=0;lastObservedPlacement=s.placement;
+   pendingPlacement='';uncertainSince=0;castleAnimationSince=0;lastObservedPlacement=s.placement;
    return;
   }
   if(lastObservedPlacement!==s.placement){
@@ -121,6 +121,18 @@
   pendingPlacement='';
   let turn=null,played=null;
   if(prev){
+   // A castle is two DOM updates on some Chess.com boards. A rook-first
+   // intermediate position is otherwise a legal rook move and wrongly
+   // becomes the baseline, causing the full castle to be rejected.
+   const partial=window.ChessTrainingTransitions?.castleIntermediate(prev.map,s.map);
+   if(partial){
+    if(!castleAnimationSince)castleAnimationSince=Date.now();
+    if(Date.now()-castleAnimationSince<1000){
+     setStatus('Roque détecté : attente de la position complète…');
+     return;
+    }
+    // A genuinely played rook move must still work after the grace period.
+   }else castleAnimationSince=0;
    const move=mover(prev.map,s.map);
    if(!move){
     // Keep the last trustworthy board: never silently discard the move.
@@ -136,7 +148,7 @@
     setStatus('Position changée hors d’un coup unique. Nouvelle référence établie.');
     return;
    }
-   uncertainSince=0;
+   uncertainSince=0;castleAnimationSince=0;
    played=move.color;
    turn=move.color==='w'?'b':'w';updateRights(move,s.map);if(move.color==='b')full++;
    half=move.piece.toLowerCase()==='p'?0:half+1;
@@ -258,7 +270,7 @@
  }
  function setup(){
   if(observation)observation.disconnect();
-  pendingPlacement='';pendingSince=0;uncertainSince=0;lastObservedPlacement='';
+  pendingPlacement='';pendingSince=0;uncertainSince=0;castleAnimationSince=0;lastObservedPlacement='';
   connect();if(timer)clearInterval(timer);if(pollTimer)clearInterval(pollTimer);
   const root=document.querySelector('main')||document.body;
   if(!root)return;
