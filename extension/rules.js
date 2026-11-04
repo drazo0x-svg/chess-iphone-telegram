@@ -84,6 +84,25 @@
   }
   return out;
  }
+ function castleIntermediate(before,after){
+  // Chess.com may move the king and rook in separate DOM frames.
+  // Match only a one-piece partial castle, leaving other pieces identical.
+  for(const colorSide of ['w','b']){
+   const rank=colorSide==='w'?'1':'8',king=colorSide==='w'?'K':'k',rook=colorSide==='w'?'R':'r';
+   const kFrom='e'+rank;
+   if(before[kFrom]!==king)continue;
+   for(const short of [true,false]){
+    const rookFrom=(short?'h':'a')+rank;
+    if(before[rookFrom]!==rook)continue;
+    const kingTo=(short?'g':'c')+rank,rookTo=(short?'f':'d')+rank;
+    // Only in states where the king or rook really moved to its castling destination.
+    const kFirst={...before};delete kFirst[kFrom];kFirst[kingTo]=king;
+    const rFirst={...before};delete rFirst[rookFrom];rFirst[rookTo]=rook;
+    if(same(kFirst,after)||same(rFirst,after))return true;
+   }
+  }
+  return false;
+ }
  function match(before,after,ep,rights){
   const matches=[];
   for(const c of ['w','b'])for(const m of generate(before,c,ep)){
@@ -92,5 +111,5 @@
   }
   return matches.length===1?matches[0]:null;
  }
- window.ChessTrainingTransitions={match};
+ window.ChessTrainingTransitions={match,castleIntermediate};
 })();
