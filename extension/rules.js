@@ -106,7 +106,8 @@
  function match(before,after,ep,rights){
   const matches=[];
   for(const c of ['w','b'])for(const m of generate(before,c,ep)){
-   if(m.castle&&!(rights||'').includes(c==='w'?(m.to[0]==='g'?'K':'Q'):(m.to[0]==='g'?'k':'q')))continue;
+   // The complete board transition is decisive. Stored FEN rights can be unknown
+   // after a replay jump; generate() verifies the king path and the rook.
    if(same(m.next,after))matches.push(m);
   }
   return matches.length===1?matches[0]:null;
