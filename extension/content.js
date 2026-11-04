@@ -13,26 +13,13 @@
   if(ch.playerColor)playerColor=ch.playerColor.newValue||'auto';
   if(ch.topic||ch.relayUrl||ch.enabled||ch.initialTurn||ch.playerColor){prev=null;seenFen='';request=null;removeArrow();setup();}
  });
- let boardCandidate=null,boardLookupAt=0;
  function findBoard(){
-  // Cache the active board: querying every potential board across the full
-  // document 8 times a second is costly on Chess.com.
-  if(boardCandidate?.isConnected){
-   const rect=boardCandidate.getBoundingClientRect();
-   if(rect.width>180&&rect.height>180)return boardCandidate;
-  }
-  if(Date.now()-boardLookupAt<350)return null;
-  boardLookupAt=Date.now();
-  const candidates=document.querySelectorAll('chess-board,wc-chess-board,cg-board,.board');
-  let best=null,score=0;
-  for(const el of candidates){
-   const rect=el.getBoundingClientRect();
-   if(rect.width<=180||rect.height<=180)continue;
-   const count=el.querySelectorAll('piece,.piece').length;
-   if(count>score){score=count;best=el;}
-  }
-  boardCandidate=score>=2?best:null;
-  return boardCandidate;
+  const candidates=[...document.querySelectorAll('chess-board,wc-chess-board,cg-board,.board')];
+  // Prefer a visible board containing real piece elements, not a preview or overlay.
+  return candidates.filter(el=>{
+   const r=el.getBoundingClientRect();
+   return r.width>180&&r.height>180&&el.querySelectorAll('piece,.piece').length>=2;
+  }).sort((x,y)=>y.querySelectorAll('piece,.piece').length-x.querySelectorAll('piece,.piece').length)[0]||null;
  }
  function playerSide(el){
   if(playerColor==='black')return 'b';
@@ -53,9 +40,7 @@
   const el=findBoard();
   if(!el)return null;
   const root=el.querySelector('cg-board')||el;
-  const items=root.querySelectorAll('piece,.piece');
-  const rootWidth=root.getBoundingClientRect().width;
-  const boardBlack=playerSide(el)==='b';
+  const items=[...root.querySelectorAll('piece,.piece')];
   const map={};
   let interpreted=0;
   for(const e of items){
@@ -74,12 +59,13 @@
    if(!coord){
     const tr=e.style.transform||'';
     const mt=tr.match(/translate(?:3d)?\(\s*([+-]?\d+(?:\.\d+)?)(px|%)\s*,\s*([+-]?\d+(?:\.\d+)?)(px|%)/);
-    const cell=rootWidth/8;
+    const cell=root.getBoundingClientRect().width/8;
     if(mt&&cell>0){
      const x=Math.round(+mt[1]*(mt[2]==='%'?1/100:1/cell));
      const y=Math.round(+mt[3]*(mt[4]==='%'?1/100:1/cell));
      if(x>=0&&x<8&&y>=0&&y<8){
-      coord=F[boardBlack?7-x:x]+(boardBlack?y+1:8-y);
+      const black=playerSide(el)==='b';
+      coord=F[black?7-x:x]+(black?y+1:8-y);
      }
     }
    }
@@ -87,9 +73,9 @@
    interpreted++;
    map[coord]=color==='w'?type.toUpperCase():type;
   }
-  const pieces=Object.values(map),whiteKings=pieces.filter(p=>p==='K').length,blackKings=pieces.filter(p=>p==='k').length;
-  if(whiteKings!==1||blackKings!==1){
-   scanDiagnostic='Pièces lues : '+interpreted+'/'+items.length+' ; rois détectés : '+whiteKings+' blanc, '+blackKings+' noir';
+  const pieces=Object.values(map);
+  if(pieces.filter(p=>p==='K').length!==1||pieces.filter(p=>p==='k').length!==1){
+   scanDiagnostic='Pièces lues : '+interpreted+'/'+items.length+' ; rois détectés : '+pieces.filter(p=>p==='K').length+' blanc, '+pieces.filter(p=>p==='k').length+' noir';
    return null;
   }
   scanDiagnostic='';
@@ -245,7 +231,6 @@
   }
  }
  function setStatus(message){
-  if(status===message&&ui?.isConnected)return;
   status=message;
   if(!ui){ui=document.createElement('div');ui.id='chess-training-status';ui.style.cssText='position:fixed;right:14px;bottom:14px;background:#13243a;color:#fff;font:13px system-ui;padding:10px 13px;z-index:2147483647;border-radius:9px;box-shadow:0 2px 10px #0008;pointer-events:none;max-width:320px';document.documentElement.appendChild(ui);}
   ui.textContent='♟ '+message;
@@ -275,7 +260,6 @@
   if(observation)observation.disconnect();
   pendingPlacement='';pendingSince=0;uncertainSince=0;lastObservedPlacement='';
   connect();if(timer)clearInterval(timer);if(pollTimer)clearInterval(pollTimer);
-  boardCandidate=null;boardLookupAt=0;
   const root=document.querySelector('main')||document.body;
   if(!root)return;
   // React to piece mutations only. Clocks, popups and UI animations used to
@@ -291,7 +275,6 @@
   });
   observation.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style']});
   // Fast fallback for CSS transforms and sites with custom rendering.
-  timer=setInterval(()=>{if(document.visibilityState==='visible')position();},120);
-  pollTimer=setInterval(check,12000);position();
+  timer=setInterval(position,120);pollTimer=setInterval(check,12000);position();
  }
 })();
