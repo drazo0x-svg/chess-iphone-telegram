@@ -3,7 +3,7 @@
  if(window.__chessTrainingV2)return;window.__chessTrainingV2=true;
  const F='abcdefgh',start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
  let topic='',relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev',enabled=true,playerColor='auto',initialTurn='auto',board=null,prev=null,fen=null,request=null,seenFen='',status='Initialisation…';
- let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,relaySocket=null,reconnectTimer=null,pendingPlacement='',pendingSince=0,uncertainSince=0,castling='KQkq',ep='-',half=0,full=1,ui=null;
+ let observation=null,overlay=null,timer=null,pollTimer=null,checkInFlight=false,relaySocket=null,reconnectTimer=null,pendingPlacement='',pendingSince=0,uncertainSince=0,lastObservedPlacement='',castling='KQkq',ep='-',half=0,full=1,ui=null;
  chrome.storage.local.get({topic:'',relayUrl:'',enabled:true,playerColor:'auto',initialTurn:'auto'},v=>{topic=v.topic;relayUrl='https://chess-iphone-telegram.ptitfilsson.workers.dev';enabled=v.enabled;playerColor=v.playerColor||'auto';initialTurn='auto';setup();});
  chrome.storage.onChanged.addListener(ch=>{
   if(ch.topic)topic=ch.topic.newValue||'';
@@ -101,13 +101,23 @@
  function position(){
   if(!enabled)return;
   const s=scan();if(!s){setStatus('Échiquier non reconnu'+(scanDiagnostic?' ('+scanDiagnostic+')':''));return;}
-  if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';pendingPlacement='';pendingSince=0;uncertainSince=0;removeArrow();}
-  if(prev?.placement===s.placement){pendingPlacement='';uncertainSince=0;return;}
-  // Wait until the DOM has stopped animating/replacing chess pieces.
+  if(board!==s.root){board=s.root;prev=null;request=null;seenFen='';pendingPlacement='';pendingSince=0;uncertainSince=0;lastObservedPlacement='';removeArrow();}
+  if(prev?.placement===s.placement){
+   // The DOM has reverted to the last verified position; it was only an animation.
+   pendingPlacement='';uncertainSince=0;lastObservedPlacement=s.placement;
+   return;
+  }
+  if(lastObservedPlacement!==s.placement){
+   // Invalidate stale arrows immediately, before full movement validation.
+   lastObservedPlacement=s.placement;
+   removeArrow();request=null;fen=null;
+  }
+  // Confirm the same arrangement for ~200ms, not 700ms + 1.5s polling.
+  // This is fast enough to record the player's move before the next response.
   if(pendingPlacement!==s.placement){
    pendingPlacement=s.placement;pendingSince=Date.now();return;
   }
-  if(Date.now()-pendingSince<700)return;
+  if(Date.now()-pendingSince<220)return;
   pendingPlacement='';
   let turn=null,played=null;
   if(prev){
@@ -115,8 +125,8 @@
    if(!move){
     // Keep the last trustworthy board: never silently discard the move.
     if(!uncertainSince)uncertainSince=Date.now();
-    if(Date.now()-uncertainSince<5000){
-     setStatus('Animation ou mouvement complexe détecté. Vérification de la position…');
+    if(Date.now()-uncertainSince<1800){
+     setStatus('Vérification du mouvement…');
      return;
     }
     // A jump through move history or board reconstruction cannot be treated as one move.
@@ -248,12 +258,23 @@
  }
  function setup(){
   if(observation)observation.disconnect();
-  pendingPlacement='';pendingSince=0;uncertainSince=0;
+  pendingPlacement='';pendingSince=0;uncertainSince=0;lastObservedPlacement='';
   connect();if(timer)clearInterval(timer);if(pollTimer)clearInterval(pollTimer);
   const root=document.querySelector('main')||document.body;
   if(!root)return;
-  observation=new MutationObserver(()=>{if(!enabled)return;clearTimeout(window.__ctDebounce);window.__ctDebounce=setTimeout(position,420);});
+  // React to piece mutations only. Clocks, popups and UI animations used to
+  // delay scans by continuously resetting a page-wide 420ms debounce.
+  observation=new MutationObserver(mutations=>{
+   if(!enabled)return;
+   const pieceChanged=mutations.some(m=>{
+    if(m.type==='attributes')return m.target.matches?.('piece,.piece')||false;
+    const added=[...m.addedNodes],removed=[...m.removedNodes];
+    return [...added,...removed].some(n=>n.nodeType===1&&(n.matches?.('piece,.piece,chess-board,wc-chess-board,cg-board,.board')||n.querySelector?.('piece,.piece')));
+   });
+   if(pieceChanged)position();
+  });
   observation.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style']});
-  timer=setInterval(position,1500);pollTimer=setInterval(check,12000);position();
+  // Fast fallback for CSS transforms and sites with custom rendering.
+  timer=setInterval(position,120);pollTimer=setInterval(check,12000);position();
  }
 })();
